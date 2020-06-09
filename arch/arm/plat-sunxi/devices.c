@@ -41,7 +41,7 @@
 #include <plat/i2c.h>
 #include <plat/platform.h>
 
-#if 1
+#if 0
 /* uart */
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
@@ -138,7 +138,7 @@ static struct platform_device sunxi_device_mali_drm = {
 #endif
 
 static struct platform_device *sw_pdevs[] __initdata = {
-#if 1
+#if 0
 	&debug_uart,
 #endif
 	&sw_pdev_dmac,
