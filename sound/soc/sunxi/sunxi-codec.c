@@ -636,10 +636,11 @@ int __devinit snd_chip_codec_mixer_new(struct snd_card *card)
 	*	指针，device_data是设备数据指针，snd_device_new本身不会分配设备数据的内存，因此事先应
 	*	分配。在这里在snd_card_create分配。
 	*/
+#if 0
 	if ((err = snd_device_new(card, SNDRV_DEV_CODEC, clnt, &ops)) < 0) {
 		return err;
 	}
-
+#endif
 	strcpy(card->mixername, "codec Mixer");
 
 	return 0;
