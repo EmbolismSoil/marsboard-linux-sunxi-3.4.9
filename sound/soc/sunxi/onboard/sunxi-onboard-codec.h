@@ -4,11 +4,14 @@
 
 #define SUNXI_I7_CODEC_BASE_ADDR         (0x01c22c00)
 #define SUNXI_I7_DAC_TXDATA		(0x0c)
+#define SUNXI_I7_DAC_FIFOC (0x04)
 
 struct sunxi_i7_chip
 {
 	struct snd_card* pcard;
 	struct platform_device* pdev;
+	struct clk* codec_pll2clk, codec_moduleclk, codec_apbclk;
+	void* baseaddr;
 };
 
 struct sunxi_i7_stream_runtime

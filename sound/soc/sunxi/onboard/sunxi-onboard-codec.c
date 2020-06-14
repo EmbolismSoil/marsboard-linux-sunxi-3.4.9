@@ -23,8 +23,29 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 	}
 
 	struct sunxi_i7_chip* pchip = *chip;
+
+	//设置采样率和时钟
+	struct clk* codec_pll2clk, codec_moduleclk, codec_apbclk;
+	codec_apbclk = clk_get(NULL,"apb_audio_codec");
+	clk_enable(codec_apbclk);
+	
+	codec_pll2clk = clk_get(NULL,"audio_pll");
+	codec_moduleclk = clk_get(NULL,"audio_codec");
+	clk_set_rate(codec_moduleclk, 24576000)
+	clk_enable(codec_pll2clk);
+	clk_set_parent(codec_moduleclk, codec_pll2clk)	
+	clk_enable(codec_moduleclk);
+
+	struct resource* res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	void* baseaddr = ioremap(res->start, res->end - res->start);
+	pchip->baseaddr = baseaddr;
+	
 	pchip->pcard = card;
 	pchip->pdev = pdev;
+	pchip->codec_pll2clk = codec_pll2clk;
+	pchip->codec_moduleclk = codec_moduleclk;
+	pchip->codec_apbclk = codec_apbclk;
+	
 	card->private_data = chip;
 	card->private_free = sunxi_i7_chip_free;
 	
@@ -34,6 +55,11 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 static int sunxi_i7_rtd_free(struct snd_pcm_runtime* rtd)
 {
 	if (rtd->private_data != NULL){
+		struct sunxi_i7_chip* chip = rtd->private_data;
+		clk_put(chip->codec_apbclk);
+		clk_put(chip->codec_moduleclk);	
+		clk_put(chip->codec_pll2clk);
+		iounmap(chip->baseaddr);
 		kzfree(rtd->private_data);
 	}
 }
@@ -166,7 +192,8 @@ static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, st
 	if (rtd->dma_params == NULL){
 		rtd->dma_params = &dma_params;
 	}
-	
+
+	//初始化dma相关
 	unsigned long buf_bytes = params_buffer_bytes(params);
 	snd_pcm_lib_malloc_pages(pcm, buf_bytes);
 	int ret = sunxi_dma_request(rtd->dma_params, 0);
@@ -193,13 +220,146 @@ static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, st
 	rtd->pos = rtd->dma_base_addr;
 	rtd->dma_end = rtd->dma_base_addr + buf_bytes;
 	spin_unlock_irq(&rtd->lock);
- 
+
 	return 0;
+}
+
+static void sunxi_i7_codec_clk_set(struct snd_pcm_substream* pcm)
+{
+	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
+	struct clk* codec_pll2clk = chip->codec_pll2clk;
+	struct clk* codec_moduleclk = chip->codec_moduleclk;
+	
+	unsigned int rate = pcm->runtime->rate;
+	unsigned int reg_val = 0;
+	switch(rate){
+		case 44100:
+			clk_set_rate(codec_pll2clk, 22579200);
+			clk_set_rate(codec_moduleclk, 22579200);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(0<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+		
+			break;
+		case 22050:
+			clk_set_rate(codec_pll2clk, 22579200);
+			clk_set_rate(codec_moduleclk, 22579200);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(2<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 11025:
+			clk_set_rate(codec_pll2clk, 22579200);
+			clk_set_rate(codec_moduleclk, 22579200);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(4<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 48000:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(0<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 96000:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(7<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 192000:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(6<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 32000:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(1<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 24000:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(2<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 16000:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(3<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 12000:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(4<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		case 8000:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(5<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;
+		default:
+			clk_set_rate(codec_pll2clk, 24576000);
+			clk_set_rate(codec_moduleclk, 24576000);
+			reg_val = readl(baseaddr + SUNXI_I7_DAC_FIFOC);
+			reg_val &=~(7<<29);
+			reg_val |=(0<<29);
+			writel(reg_val, baseaddr + SUNXI_I7_DAC_FIFOC);
+			break;			
+	}
+
+}
+
+static void sunxi_i7_codec_channel_set(struct snd_pcm_substream* pcm)
+{
+	unsigned int regval;
+	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
+	void* addr = chip->baseaddr;
+	void* fifoc = addr + SUNXI_I7_DAC_FIFOC;	
+	regval = readl(fifoc);
+	if (pcm->runtime->channels == 1){
+		regval |= (1 << 6);
+	}else{
+		regval &=~ (1 << 6);
+	}
+	writel(regval, fifoc);
+
 }
 
 static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 {
-	
+	sunxi_i7_codec_clk_set(pcm);
+	sunxi_i7_codec_channel_set(pcm);
+
+	//硬件打开codec
+
+	//硬件启动codec播放
+
+	//启动dma
 	return 0;
 }
 
@@ -243,7 +403,7 @@ static int __devinit sunxi_onboard_codec_probe(struct platform_device* pdev)
 	if (ret < 0){
 		goto failed_chip;
 	}
-
+	
 	//创建控制接口
 	
 	//创建pcm
@@ -276,15 +436,25 @@ static int sunxi_onboard_codec_remove(struct platform_device* pdev)
 	return 0;
 }
 
-struct platform_driver sunxi_i7_onboard_codec_drv = 
+static struct platform_driver sunxi_i7_onboard_codec_drv = 
 {
 	.name = "sunxi-i7-onboard-codec",
 	.probe = sunxi_onboard_codec_probe,
 	.remove = sunxi_onboard_codec_remove
 };
+	
+static struct resource sunxi_codec_resource[] = {
+	[0] = {
+		.start = SUNXI_I7_CODEC_BASE_ADDR,
+		.end = SUNXI_I7_CODEC_BASE_ADDR + 0x40,
+		.flags = IORESOURCE_MEM
+	}
+};
 
-struct platform_device sunxi_i7_onboard_codec_dev = {
-	.name = "sunxi-i7-onboard-codec"
+static struct platform_device sunxi_i7_onboard_codec_dev = {
+	.name = "sunxi-i7-onboard-codec",
+	.num_resources = ARRAY_SIZE(sunxi_codec_resource),
+	.resource = sunxi_codec_resource
 };
 
 static int __init sunxi_onboard_codec_init(void)
