@@ -1,6 +1,7 @@
 #include <linux/init.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
+#include <linux/kernel.h>
 #include <sound/core.h>
 #include <sound/initval.h>
 #include "sunxi-onboard-codec.h"
@@ -30,6 +31,13 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 	return 0;
 }
 
+static int sunxi_i7_rtd_free(struct snd_pcm_runtime* rtd)
+{
+	if (rtd->private_data != NULL){
+		kzfree(rtd->private_data);
+	}
+}
+
 static int sunxi_i7_onboard_codec_playback_open(struct snd_pcm_substream* pcm)
 {
 	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
@@ -52,9 +60,9 @@ static int sunxi_i7_onboard_codec_playback_open(struct snd_pcm_substream* pcm)
 		.channels_min		= 1,
 		.channels_max		= 2,
 		.buffer_bytes_max	= 128*1024,//最大的缓冲区大小
-		.period_bytes_min	= 1024*4,//最小周期bytes数
+		.period_bytes_min	= 1024*4,//最小周期bytes数, 一个周期处理1024个frame
 		.period_bytes_max	= 1024*32,//最大周期bytes数
-		.periods_min		= 4,//最小周期数
+		.periods_min		= 4,//最小周期数, 缓冲区内最少要有4个period数据，也就是4*4*1024字节
 		.periods_max		= 8,//最大周期数
 		.fifo_size	     	= 32,//fifo字节数
 	};
@@ -76,6 +84,16 @@ static int sunxi_i7_onboard_codec_playback_open(struct snd_pcm_substream* pcm)
 
 	
 	runtime->hw = hw;
+	sunxi_i7_stream_runtime* rtd = kzalloc(sizeof(struct sunxi_i7_stream_runtime), GFP_KERNEL);
+	if (rtd == NULL){
+		return -ENOMEM;
+	}
+
+	memset(rtd, 0, sizeof(struct sunxi_i7_stream_runtime));
+
+	pcm->runtime->private_data = rtd;
+	pcm->runtime->private_free = sunxi_i7_rtd_free;
+	spin_lock_init(&rtd->lock);
 
 	int err = 0;
 	if ((err = snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS)) < 0){
@@ -97,22 +115,106 @@ static int sunxi_i7_onboard_capture_close(struct snd_pcm_substream* pcm){
 	return 0;
 }
 
+static int sunxi_i7_dma_push(struct sunxi_i7_stream_runtime* rtd)
+{
+	//将缓冲区的数据通过dma发送
+	dma_addr_t pos = rtd->pos;
+	struct sunxi_dma_params* dma = rtd->dma_params;
+	
+	int ret = 0;
+	while(rtd->periods < rtd->period_min){
+		unsigned int len = min(rtd->period_bytes, rtd->dma_end - pos);
+		ret = sunxi_dma_enqueue(dma, pos, len, 0);
+		if (ret == 0){
+			pos = pos + len;
+			pos = pos < rtd->dma_end ? pos : rtd->dma_base_addr;
+			rtd->periods += 1;
+		}else{
+			break;
+		}
+	}
+
+	rtd->pos = pos;
+	return ret;
+}
+
+static int sunxi_i7_play_dma_callback(struct sunxi_dma_params* dma, void* arg)
+{
+	struct snd_pcm_substream* pcm = arg;
+	snd_pcm_period_elapsed(pcm);
+
+	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
+	spin_lock(&rtd->lock);
+	if (rtd->periods > 0){
+		rtd->periods -= 1;		
+	}
+	int ret = sunxi_i7_dma_push(rtd);
+	spin_unlock(&rtd->lock);
+
+	return ret;
+}
+
 static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, struct snd_pcm_hw_params* params)
 {
-	unsigned long paly_buf_size = params_buffer_bytes(params);
+	//分配好内存然后初始化dma
+	static struct sunxi_dma_params dma_params = {
+		.client.name = "sunxi-i7-codec play",
+		.dma_addr = SUNXI_I7_CODEC_BASE_ADDR + SUNXI_I7_DAC_TXDATA
+	};
+
+	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
+	if (rtd->dma_params == NULL){
+		rtd->dma_params = &dma_params;
+	}
 	
+	unsigned long buf_bytes = params_buffer_bytes(params);
+	snd_pcm_lib_malloc_pages(pcm, buf_bytes);
+	int ret = sunxi_dma_request(rtd->dma_params, 0);
+	
+	if (ret < 0){
+		printk(KERN_ERR, "failed to request dma. ret = %d\n", ret);
+		return ret;
+	}
+	
+	ret = sunxi_dma_set_callback((rtd->dma_params, sunxi_i7_play_dma_callback, pcm);
+	if (ret < 0){
+		printk(KERN_ERR, "failed to set dma callback, ret = %d\n", ret);
+		sunxi_dma_release(rtd->dma_params);
+		rtd->dma_params = NULL;
+		return ret;
+	}
+
+	struct snd_pcm_runtime* pcm_rtd = pcm->runtime;
+	spin_lock_irq(&rtd->lock);
+	rtd->periods = 0;
+	rtd->period_bytes = params_period_bytes(params);
+	rtd->period_min = pcm_rtd->hw.periods_min;
+	rtd->dma_base_addr = snd_pcm_runtime->dma_addr;
+	rtd->pos = rtd->dma_base_addr;
+	rtd->dma_end = rtd->dma_base_addr + buf_bytes;
+	spin_unlock_irq(&rtd->lock);
+ 
+	return 0;
+}
+
+static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
+{
+	
+	return 0;
 }
 
 static struct snd_pcm_ops playback_ops = {
 	.open = sunxi_i7_onboard_codec_playback_open,
 	.close = sunxi_i7_onboard_playback_close,
 	.ioctl = snd_pcm_lib_ioctl,
+	.hw_params = sunxi_i7_onboard_playback_hw_params,
+	
 };
 
 static struct snd_pcm_ops capture_ops = {
 	.open = sunxi_i7_onboard_codec_capture_open,
 	.close = sunxi_i7_onboard_capture_close,
-	.ioctl = snd_pcm_lib_ioctl,
+	.ioctl = snd_pcm_lib_ioctl
 };
 
 static int __devinit sunxi_onboard_codec_pcm_new(struct sunxi_i7_chip* chip)
@@ -120,12 +222,12 @@ static int __devinit sunxi_onboard_codec_pcm_new(struct sunxi_i7_chip* chip)
 	struct snd_card* card = chip->pcard;
 	struct snd_pcm* pcm;
 	int err = 0;
-	if ((err = snd_pcm_new(card, "ONBOARD-M1 PCM", 0, 1, 1, &pcm)) < 0){
+	if ((err = snd_pcm_new(card, "ONBOARD-M1 PCM", 0, 1, 0, &pcm)) < 0){
 		return err;
 	}
 
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &playback_ops);	
-	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &capture_ops);
+	//snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &capture_ops);
 }
 
 static int __devinit sunxi_onboard_codec_probe(struct platform_device* pdev)
@@ -145,8 +247,6 @@ static int __devinit sunxi_onboard_codec_probe(struct platform_device* pdev)
 	//创建控制接口
 	
 	//创建pcm
-	
-
 	strcpy(card->driver, "sunxi-i7-onboard-codec");
 	strcpy(card->shortname, "sunxi-i7-onboard-codec");
 	strcpy(card->longname, "sunxi-i7-onboard-codec Audio Codec");
