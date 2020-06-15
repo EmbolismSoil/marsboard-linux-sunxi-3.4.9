@@ -5,6 +5,8 @@
 #define SUNXI_I7_CODEC_BASE_ADDR         (0x01c22c00)
 #define SUNXI_I7_DAC_TXDATA		(0x0c)
 #define SUNXI_I7_DAC_FIFOC (0x04)
+#define SUNXI_I7_DAC_DPC (0x00)
+#define SUNXI_I7_DAC_ACTRL (0x10)
 
 struct sunxi_i7_chip
 {

@@ -4,6 +4,7 @@
 #include <linux/kernel.h>
 #include <sound/core.h>
 #include <sound/initval.h>
+#include <linux/types.h>
 #include "sunxi-onboard-codec.h"
 
 static void sunxi_i7_chip_free(struct snd_card* card)
@@ -350,13 +351,71 @@ static void sunxi_i7_codec_channel_set(struct snd_pcm_substream* pcm)
 
 }
 
+static void set_bit(uint32_t* addr, uint32_t const bit)
+{
+	uint32_t regval = readl(addr);
+	uint32_t opval = regval;	
+	opval |= (1 << bit);
+	if (opval != regval){
+		writel(opval, baseaddr);
+	}
+}
+
+static void clear_bit(uint32_t* addr, uint32_t const bit)
+{
+	uint32_t regval = readl(addr);
+	uint32_t opval = regval;
+	opval &=~ (1 << bit);
+	if (regval != opval){
+		writel(opval, baseaddr);
+	}
+}
+
+static void sunxi_i7_codec_hw_open(struct snd_pcm_substream* pcm)
+{
+	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
+	void *baseaddr = chip->baseaddr;
+	
+	//DAC ENABLE
+	uint32_t* reg = baseaddr + SUNXI_I7_DAC_DPC;
+	set_bit(reg, 31);
+
+	reg = baseaddr + SUNXI_I7_DAC_FIFOC;
+	//FIFO刷新
+	set_bit(reg, 0);
+
+	//设置DRQ LEVEL
+	//uint32_t regval = readl(reg);
+	//regval |= (0xf << 8);
+
+	if(pcm->runtime->rate > 32000){
+		clear_bit(reg, 28);
+	}else{
+		set_bit(reg, 28);
+	}
+
+	set_bit(reg, 24);
+	clear_bit(reg, 26);
+
+
+	reg = baseaddr + SUNXI_I7_DAC_ACTRL;
+	set_bit(reg, 30);
+	set_bit(reg, 31);
+
+	set_bit(reg, 8); //DAC链接内部运放
+}
+
 static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 {
-	sunxi_i7_codec_clk_set(pcm);
-	sunxi_i7_codec_channel_set(pcm);
-
 	//硬件打开codec
+	sunxi_i7_codec_hw_open(pcm);
 
+	//设置采样频率
+	sunxi_i7_codec_clk_set(pcm);
+
+	//设置通道	
+	sunxi_i7_codec_channel_set(pcm);
+	
 	//硬件启动codec播放
 
 	//启动dma
