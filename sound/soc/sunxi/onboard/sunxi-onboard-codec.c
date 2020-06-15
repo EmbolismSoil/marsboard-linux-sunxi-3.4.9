@@ -405,6 +405,39 @@ static void sunxi_i7_codec_hw_open(struct snd_pcm_substream* pcm)
 	set_bit(reg, 8); //DAC链接内部运放
 }
 
+static int sunxi_i7_codec_dma_config(struct snd_pcm_substream* pcm)
+{
+	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
+	struct sunxi_dma_params* dma = rtd->dma_params;
+	dma_config_t conf;
+	
+	memset(&conf, 0, sizeof(conf));
+	conf.xfer_type.src_data_width = DATA_WIDTH_16BIT; //16bit
+	conf.xfer_type.src_bst_len = DATA_BRST_4; //BRST 4
+	conf.xfer_type.dst_data_width = DATA_WIDTH_16BIT;
+	conf.xfer_type.dst_bst_len = DATA_BRST_4;
+	
+	conf.address_type.src_addr_mode = NDMA_ADDR_INCREMENT;
+	conf.address_type.dst_addr_mode = NDMA_ADDR_NOCHANGE;
+	conf.src_drq_type = N_SRC_SDRAM;
+	conf.dst_drq_type = N_DST_AUDIO_CODEC_DA;
+	conf.bconti_mode = false;
+	conf.irq_spt = CHAN_IRQ_FD;
+	
+	int ret = sunxi_dma_config(dma, &conf, 0);
+	if (ret < 0){
+		return ret;
+	}
+
+	
+	rtd->periods = 0;
+	if (sunxi_dma_flush(dma) == 0){
+		rtd->pos = rtd->dma_base_addr;
+	}
+
+	return 0;
+}
+
 static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 {
 	//硬件打开codec
@@ -416,10 +449,16 @@ static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 	//设置通道	
 	sunxi_i7_codec_channel_set(pcm);
 	
-	//硬件启动codec播放
+	//DMA配置
+	int ret = sunxi_i7_codec_dma_config(pcm);
+	if(ret < 0){
+		printk(KERN_ERR, "config dma failed.\n");
+		return ret;
+	}
 
-	//启动dma
-	return 0;
+	//加载dma数据
+	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
+	sunxi_i7_dma_push(rtd);
 }
 
 static struct snd_pcm_ops playback_ops = {
@@ -427,7 +466,7 @@ static struct snd_pcm_ops playback_ops = {
 	.close = sunxi_i7_onboard_playback_close,
 	.ioctl = snd_pcm_lib_ioctl,
 	.hw_params = sunxi_i7_onboard_playback_hw_params,
-	
+	.prepare = sunxi_i7_onboard_playback_prepare
 };
 
 static struct snd_pcm_ops capture_ops = {
