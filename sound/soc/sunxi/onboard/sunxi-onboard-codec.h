@@ -12,13 +12,15 @@ struct sunxi_i7_chip
 {
 	struct snd_card* pcard;
 	struct platform_device* pdev;
-	struct clk* codec_pll2clk, codec_moduleclk, codec_apbclk;
+	struct clk* codec_pll2clk;
+	struct clk* codec_moduleclk;
+	struct clk* codec_apbclk;
 	void* baseaddr;
 };
 
 struct sunxi_i7_stream_runtime
 {
-	sunxi_dma_params* dma_params;
+	struct sunxi_dma_params* dma_params;
 	unsigned int periods; //当前dma buffer中有多少个周期
 	unsigned int period_bytes; //一个周期有多少byte
 	unsigned int period_min; //最少有多少个周期
