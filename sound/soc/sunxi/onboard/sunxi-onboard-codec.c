@@ -461,12 +461,28 @@ static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 	sunxi_i7_dma_push(rtd);
 }
 
+static int sunxi_i7_onboard_playback_pointer(struct snd_pcm_substream* pcm)
+{
+	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
+	dma_addr_t src;
+	dma_addr_t dest;	
+	unsigned long res = 0;
+
+	spin_lock(&rtd->lock);
+	sunxi_dma_getcurposition(rtd->dma_params, &src, &dest);
+	res = src + rtd->period_bytes - rtd->dma_base_addr;
+	spin_unlock(&rtd->lock);
+	return bytes_to_frames(pcm->runtime, res);
+}
+
+
 static struct snd_pcm_ops playback_ops = {
 	.open = sunxi_i7_onboard_codec_playback_open,
 	.close = sunxi_i7_onboard_playback_close,
 	.ioctl = snd_pcm_lib_ioctl,
 	.hw_params = sunxi_i7_onboard_playback_hw_params,
-	.prepare = sunxi_i7_onboard_playback_prepare
+	.prepare = sunxi_i7_onboard_playback_prepare,
+	.pointer = sunxi_i7_onboard_playback_pointer
 };
 
 static struct snd_pcm_ops capture_ops = {
