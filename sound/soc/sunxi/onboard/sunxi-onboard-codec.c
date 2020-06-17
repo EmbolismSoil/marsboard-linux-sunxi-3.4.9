@@ -62,6 +62,8 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 	struct resource* res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	void* baseaddr = ioremap(res->start, res->end - res->start);
 	pchip->baseaddr = baseaddr;
+
+	pchip->gpio_pa = gpio_request_ex("audio_para", "audio_pa_ctrl");
 	
 	pchip->pcard = card;
 	pchip->pdev = pdev;
@@ -394,6 +396,26 @@ static void sunxi_i7_clear_bit(uint32_t* addr, uint32_t const bit)
 	}
 }
 
+static void sunxi_i7_codec_cmd(struct snd_pcm_substream* pcm, sunxi_i7_codec_cmd_t const cmd)
+{
+	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
+	const void* baseaddr = chip->baseaddr;
+	void* reg = NULL;
+	switch(cmd){
+		case SUNXI_I7_CODEC_FLUSH_FIFO_CMD:
+			reg = baseaddr + SUNXI_I7_DAC_FIFOC;
+			sunxi_i7_set_bit(reg, 0);
+			break;
+			
+		case SUNXI_I7_CODEC_ENABLE_DRQ_CMD:
+			reg = baseaddr + SUNXI_I7_DAC_FIFOC;
+			sunxi_i7_set_bit(reg, 4);
+		
+		default:
+			break;
+	}
+}
+
 static void sunxi_i7_codec_hw_open(struct snd_pcm_substream* pcm)
 {
 	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
@@ -404,8 +426,9 @@ static void sunxi_i7_codec_hw_open(struct snd_pcm_substream* pcm)
 	sunxi_i7_set_bit(reg, 31);
 
 	reg = baseaddr + SUNXI_I7_DAC_FIFOC;
+	
 	//FIFO刷新
-	sunxi_i7_set_bit(reg, 0);
+	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_FLUSH_FIFO_CMD);
 
 	//设置DRQ LEVEL
 	//uint32_t regval = readl(reg);
@@ -452,7 +475,6 @@ static int sunxi_i7_codec_dma_config(struct snd_pcm_substream* pcm)
 		return ret;
 	}
 
-	
 	rtd->periods = 0;
 	if (sunxi_dma_flush(dma) == 0){
 		rtd->pos = rtd->dma_base_addr;
@@ -498,6 +520,26 @@ static snd_pcm_uframes_t sunxi_i7_onboard_playback_pointer(struct snd_pcm_substr
 	return bytes_to_frames(pcm->runtime, res);
 }
 
+static int sunxi_i7_onboard_playback_hw_start(struct snd_pcm_substream* pcm)
+{
+	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
+	gpio_write_one_pin_value(chip->gpio_pa, 1, "audio_pa_ctrl");
+
+	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_FLUSH_FIFO_CMD);
+	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_ENABLE_DRQ_CMD);
+	return 0;
+}
+
+static int sunxi_i7_onboard_playback_trigger(struct snd_pcm_substream* pcm, int cmd)
+{
+	switch(cmd){
+		case SNDRV_PCM_TRIGGER_START:
+		case SNDRV_PCM_TRIGGER_RESUME:
+		case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+			sunxi_i7_onboard_playback_hw_start(pcm);			
+	}
+	return 0;
+}
 
 static struct snd_pcm_ops playback_ops = {
 	.open = sunxi_i7_onboard_codec_playback_open,

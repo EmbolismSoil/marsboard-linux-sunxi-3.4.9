@@ -8,6 +8,11 @@
 #define SUNXI_I7_DAC_DPC (0x00)
 #define SUNXI_I7_DAC_ACTRL (0x10)
 
+typedef enum{
+	SUNXI_I7_CODEC_FLUSH_FIFO_CMD=1, 
+	SUNXI_I7_CODEC_ENABLE_DRQ_CMD
+} sunxi_i7_codec_cmd_t;
+
 struct sunxi_i7_chip
 {
 	struct snd_card* pcard;
@@ -16,6 +21,7 @@ struct sunxi_i7_chip
 	struct clk* codec_moduleclk;
 	struct clk* codec_apbclk;
 	void* baseaddr;
+	int gpio_pa;
 };
 
 struct sunxi_i7_stream_runtime
