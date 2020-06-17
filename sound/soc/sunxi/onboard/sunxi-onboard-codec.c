@@ -612,6 +612,7 @@ static int sunxi_i7_onboard_playback_trigger(struct snd_pcm_substream* pcm, int 
 		case SNDRV_PCM_TRIGGER_START:
 		case SNDRV_PCM_TRIGGER_RESUME:
 		case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+			printk(KERN_ALERT"sunxi_i7_onboard_playback_trigger: start play\n");
 			sunxi_i7_onboard_playback_hw_start(pcm);
 			sunxi_i7_dma_push(rtd);
 			sunxi_dma_start(rtd->dma_params);
@@ -622,17 +623,20 @@ static int sunxi_i7_onboard_playback_trigger(struct snd_pcm_substream* pcm, int 
 			}			
 			sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_UNMUTE_CMD);
 			
-		case SNDRV_PCM_TRIGGER_SUSPEND:
+		case SNDRV_PCM_TRIGGER_SUSPEND:			
+			printk(KERN_ALERT"sunxi_i7_onboard_playback_trigger: stop play\n");
 			sunxi_i7_onboard_playback_hw_stop(pcm);
 			break;
 
-		case SNDRV_PCM_TRIGGER_STOP:
+		case SNDRV_PCM_TRIGGER_STOP:		
+			printk(KERN_ALERT"sunxi_i7_onboard_playback_trigger: stop play\n");
 			sunxi_i7_onboard_playback_hw_stop(pcm);
 			sunxi_dma_stop(rtd->dma_params);
 			rtd->periods = 0;
 			break;
 
 		case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+			printk(KERN_ALERT"sunxi_i7_onboard_playback_trigger: stop play\n");			
 			sunxi_dma_stop(rtd->dma_params);
 			rtd->periods = 0;
 			break;
