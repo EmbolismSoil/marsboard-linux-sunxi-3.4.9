@@ -6,3 +6,8 @@ ccflags-y := -std=gnu99 -Wno-declaration-after-statement
 
 all:
 	make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -C $(KDIR) M=$(PWD) modules
+
+.PHONY: clean
+clean:
+	rm *.o
+	rm *.ko
