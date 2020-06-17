@@ -69,6 +69,8 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 		printk(KERN_ALERT"ioremap failed.\n");
 		return -ENOMEM;
 	}
+
+	printk(KERN_ALERT"sunxi_i7_chip_create: baseaddr=0x%08x\n", (uint32_t)baseaddr);
 	
 	pchip->baseaddr = baseaddr;
 
