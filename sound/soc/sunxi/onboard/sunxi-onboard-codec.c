@@ -75,7 +75,7 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 	return 0;
 }
 
-static int sunxi_i7_rtd_free(struct snd_pcm_runtime* rtd)
+static void sunxi_i7_rtd_free(struct snd_pcm_runtime* rtd)
 {
 	if (rtd->private_data != NULL){
 		struct sunxi_i7_chip* chip = rtd->private_data;
@@ -85,13 +85,11 @@ static int sunxi_i7_rtd_free(struct snd_pcm_runtime* rtd)
 		iounmap(chip->baseaddr);
 		kzfree(rtd->private_data);
 	}
-
-	return 0;
 }
 
 static int sunxi_i7_onboard_codec_playback_open(struct snd_pcm_substream* pcm)
 {
-	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
+	//struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
 	struct snd_pcm_runtime* runtime = pcm->runtime;
 	static struct snd_pcm_hardware hw = {
 		/*1. 左右声道数据是交替传输的 2. 数据传输是块传输 3. 硬件支持mmap(寄存器控制) 4. 支持暂停 5.支持唤醒*/
@@ -189,7 +187,7 @@ static int sunxi_i7_dma_push(struct sunxi_i7_stream_runtime* rtd)
 	return ret;
 }
 
-static int sunxi_i7_play_dma_callback(struct sunxi_dma_params* dma, void* arg)
+static void sunxi_i7_play_dma_callback(struct sunxi_dma_params* dma, void* arg)
 {
 	struct snd_pcm_substream* pcm = arg;
 	snd_pcm_period_elapsed(pcm);
@@ -199,10 +197,8 @@ static int sunxi_i7_play_dma_callback(struct sunxi_dma_params* dma, void* arg)
 	if (rtd->periods > 0){
 		rtd->periods -= 1;		
 	}
-	int ret = sunxi_i7_dma_push(rtd);
+	sunxi_i7_dma_push(rtd);
 	spin_unlock(&rtd->lock);
-
-	return ret;
 }
 
 static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, struct snd_pcm_hw_params* params)
@@ -488,7 +484,7 @@ static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 	sunxi_i7_dma_push(rtd);
 }
 
-static int sunxi_i7_onboard_playback_pointer(struct snd_pcm_substream* pcm)
+static snd_pcm_uframes_t sunxi_i7_onboard_playback_pointer(struct snd_pcm_substream* pcm)
 {
 	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
 	dma_addr_t src;
@@ -619,11 +615,10 @@ static int __init sunxi_onboard_codec_init(void)
 	return 0;
 }
 
-static int __exit sunxi_onboard_codec_exit(void)
+static void __exit sunxi_onboard_codec_exit(void)
 {
 	platform_device_unregister(&sunxi_i7_onboard_codec_dev);
 	platform_driver_unregister(&sunxi_i7_onboard_codec_drv);
-	return 0;
 }
 
 
