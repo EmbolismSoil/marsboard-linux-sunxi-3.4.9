@@ -66,7 +66,7 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 	struct resource* res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	void* baseaddr = ioremap(res->start, res->end - res->start);
 	if (!baseaddr){
-		printk(KERN_ERR"ioremap failed.\n");
+		printk(KERN_ALERT"ioremap failed.\n");
 		return -ENOMEM;
 	}
 	
@@ -229,14 +229,14 @@ static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, st
 	int ret = sunxi_dma_request(rtd->dma_params, 0);
 	
 	if (ret < 0){
-		printk(KERN_ERR"failed to request dma. ret = %d\n", ret);
+		printk(KERN_ALERT"failed to request dma. ret = %d\n", ret);
 		return ret;
 	}
 
 	ret = sunxi_dma_set_callback(rtd->dma_params, sunxi_i7_play_dma_callback, pcm);
 
 	if (ret < 0){
-		printk(KERN_ERR"failed to set dma callback, ret = %d\n", ret);
+		printk(KERN_ALERT"failed to set dma callback, ret = %d\n", ret);
 		sunxi_dma_release(rtd->dma_params);
 		rtd->dma_params = NULL;
 		return ret;
@@ -389,7 +389,8 @@ static void sunxi_i7_set_bit(uint32_t* addr, uint32_t const bit)
 	uint32_t opval = regval;	
 	opval |= (1 << bit);
 	if (opval != regval){
-		writel(opval, addr);
+	    printk(KERN_ALERT"set_bit: write 0x%08x to addres 0x%08x\n", opval, (uint32_t)addr);
+	    writel(opval, addr);
 	}
 }
 
@@ -399,6 +400,7 @@ static void sunxi_i7_clear_bit(uint32_t* addr, uint32_t const bit)
 	uint32_t opval = regval;
 	opval &=~ (1 << bit);
 	if (regval != opval){
+	        printk(KERN_ALERT"clear_bit: write 0x%08x to addres 0x%08x\n", opval, (uint32_t)addr);
 		writel(opval, addr);
 	}
 }
@@ -532,7 +534,7 @@ static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 	//DMA配置
 	int ret = sunxi_i7_codec_dma_config(pcm);
 	if(ret < 0){
-		printk(KERN_ERR"config dma failed.\n");
+		printk(KERN_ALERT"config dma failed.\n");
 		return ret;
 	}
 
@@ -680,7 +682,7 @@ static int  sunxi_onboard_codec_probe(struct platform_device* pdev)
 	snd_card_set_dev(card, &pdev->dev);
 	
 	if ((ret = sunxi_onboard_codec_pcm_new(chip)) < 0){
-		printk(KERN_ERR"create pcm failed. ret=%d\n", ret);
+		printk(KERN_ALERT"create pcm failed. ret=%d\n", ret);
 		return ret;
 	}
 		
