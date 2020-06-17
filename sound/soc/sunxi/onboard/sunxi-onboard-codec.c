@@ -156,8 +156,6 @@ static int sunxi_i7_onboard_codec_playback_open(struct snd_pcm_substream* pcm)
 	pcm->runtime->private_data = rtd;
 	pcm->runtime->private_free = sunxi_i7_rtd_free;
 	spin_lock_init(&rtd->lock);
-
-	pcm->private_data = pcm->pcm->card->private_data;
 	
 	int err = 0;
 	if ((err = snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS)) < 0){
@@ -673,6 +671,7 @@ static int  sunxi_onboard_codec_pcm_new(struct sunxi_i7_chip* chip)
 		return err;
 	}
 
+	pcm->private_data = chip;
 	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
 					      snd_dma_isa_data(),
 					      32*1024, 32*1024);
