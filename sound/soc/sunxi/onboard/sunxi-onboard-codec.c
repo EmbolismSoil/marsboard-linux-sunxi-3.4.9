@@ -155,6 +155,8 @@ static int sunxi_i7_onboard_codec_playback_open(struct snd_pcm_substream* pcm)
 	pcm->runtime->private_free = sunxi_i7_rtd_free;
 	spin_lock_init(&rtd->lock);
 
+	pcm->private_data = pcm->pcm->card->private_data;
+	
 	int err = 0;
 	if ((err = snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS)) < 0){
 		return err;
