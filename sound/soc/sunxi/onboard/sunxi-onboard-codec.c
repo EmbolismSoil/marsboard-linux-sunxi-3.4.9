@@ -636,7 +636,7 @@ static struct snd_pcm_ops capture_ops = {
 };
 #endif
 
-static int __devinit sunxi_onboard_codec_pcm_new(struct sunxi_i7_chip* chip)
+static int  sunxi_onboard_codec_pcm_new(struct sunxi_i7_chip* chip)
 {
 	struct snd_card* card = chip->pcard;
 	struct snd_pcm* pcm;
@@ -655,7 +655,7 @@ static int __devinit sunxi_onboard_codec_pcm_new(struct sunxi_i7_chip* chip)
 	//snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &capture_ops);
 }
 
-static int __devinit sunxi_onboard_codec_probe(struct platform_device* pdev)
+static int  sunxi_onboard_codec_probe(struct platform_device* pdev)
 {
 	struct snd_card* card = NULL;
 	int ret = snd_card_create(0, "sunxi-codec", THIS_MODULE, 0, &card);
@@ -729,7 +729,7 @@ static struct platform_device sunxi_i7_onboard_codec_dev = {
 	.resource = sunxi_codec_resource
 };
 
-static int __init sunxi_onboard_codec_init(void)
+static int  sunxi_onboard_codec_init(void)
 {
 	int ret = 0;
 	ret = platform_device_register(&sunxi_i7_onboard_codec_dev);
@@ -746,7 +746,7 @@ static int __init sunxi_onboard_codec_init(void)
 	return 0;
 }
 
-static void __exit sunxi_onboard_codec_exit(void)
+static void  sunxi_onboard_codec_exit(void)
 {
 	platform_device_unregister(&sunxi_i7_onboard_codec_dev);
 	platform_driver_unregister(&sunxi_i7_onboard_codec_drv);
