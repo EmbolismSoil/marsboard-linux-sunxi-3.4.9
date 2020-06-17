@@ -639,6 +639,11 @@ static int __devinit sunxi_onboard_codec_pcm_new(struct sunxi_i7_chip* chip)
 		return err;
 	}
 
+	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
+					      snd_dma_isa_data(),
+					      32*1024, 32*1024);
+
+
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &playback_ops);	
 	return 0;
 	//snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &capture_ops);
