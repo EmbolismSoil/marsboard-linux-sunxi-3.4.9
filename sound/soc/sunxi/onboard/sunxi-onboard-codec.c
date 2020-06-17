@@ -399,7 +399,7 @@ static void sunxi_i7_clear_bit(uint32_t* addr, uint32_t const bit)
 static void sunxi_i7_codec_cmd(struct snd_pcm_substream* pcm, sunxi_i7_codec_cmd_t const cmd)
 {
 	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
-	const void* baseaddr = chip->baseaddr;
+	void* baseaddr = chip->baseaddr;
 	void* reg = NULL;
 	switch(cmd){
 		case SUNXI_I7_CODEC_FLUSH_FIFO_CMD:
@@ -532,6 +532,7 @@ static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 	//加载dma数据
 	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
 	sunxi_i7_dma_push(rtd);
+	return 0;
 }
 
 static snd_pcm_uframes_t sunxi_i7_onboard_playback_pointer(struct snd_pcm_substream* pcm)
@@ -567,7 +568,7 @@ static int sunxi_i7_onboard_playback_hw_stop(struct snd_pcm_substream* pcm)
 
 	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_DISABLE_DRQ_CMD);
 	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_DAC_DISABLE_CMD);
-	
+        return 0;	
 }
 
 static int sunxi_i7_onboard_playback_trigger(struct snd_pcm_substream* pcm, int cmd)
@@ -581,7 +582,7 @@ static int sunxi_i7_onboard_playback_trigger(struct snd_pcm_substream* pcm, int 
 		case SNDRV_PCM_TRIGGER_RESUME:
 		case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 			sunxi_i7_onboard_playback_hw_start(pcm);
-			sunxi_i7_dma_push(pcm_rtd);
+			sunxi_i7_dma_push(rtd);
 			sunxi_dma_start(rtd->dma_params);
 			if (pcm_rtd->rate > 22050){
 				mdelay(2);
