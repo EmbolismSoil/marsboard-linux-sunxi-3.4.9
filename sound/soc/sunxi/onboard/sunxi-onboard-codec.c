@@ -410,7 +410,35 @@ static void sunxi_i7_codec_cmd(struct snd_pcm_substream* pcm, sunxi_i7_codec_cmd
 		case SUNXI_I7_CODEC_ENABLE_DRQ_CMD:
 			reg = baseaddr + SUNXI_I7_DAC_FIFOC;
 			sunxi_i7_set_bit(reg, 4);
-		
+			break;
+
+		case SUNXI_I7_CODEC_DISABLE_DRQ_CMD:
+			reg = baseaddr + SUNXI_I7_DAC_FIFOC;
+			sunxi_i7_clear_bit(reg, 4);
+			break;
+
+		case SUNXI_I7_CODEC_UNMUTE_CMD:
+			reg = baseaddr + SUNXI_I7_DAC_ACTRL;
+			sunxi_i7_set_bit(reg, 6);		
+			break;		
+
+		case SUNXI_I7_CODEC_MUTE_CMD:
+			reg = baseaddr + SUNXI_I7_DAC_ACTRL;
+			sunxi_i7_clear_bit(reg, 6);	
+			break;	
+
+		case SUNXI_I7_CODEC_DAC_ENABLE_CMD:
+			reg = baseaddr + SUNXI_I7_DAC_ACTRL;
+			sunxi_i7_set_bit(reg, 30);
+			sunxi_i7_set_bit(reg, 31);
+			break;
+
+		case SUNXI_I7_CODEC_DAC_DISABLE_CMD:
+			reg = baseaddr + SUNXI_I7_DAC_ACTRL;
+			sunxi_i7_clear_bit(reg, 30);
+			sunxi_i7_clear_bit(reg, 31);
+			break;
+			
 		default:
 			break;
 	}
@@ -445,8 +473,8 @@ static void sunxi_i7_codec_hw_open(struct snd_pcm_substream* pcm)
 
 
 	reg = baseaddr + SUNXI_I7_DAC_ACTRL;
-	sunxi_i7_set_bit(reg, 30);
-	sunxi_i7_set_bit(reg, 31);
+	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_DAC_ENABLE_CMD);
+
 
 	sunxi_i7_set_bit(reg, 8); //DAC链接内部运放
 }
@@ -530,14 +558,57 @@ static int sunxi_i7_onboard_playback_hw_start(struct snd_pcm_substream* pcm)
 	return 0;
 }
 
+static int sunxi_i7_onboard_playback_hw_stop(struct snd_pcm_substream* pcm)
+{
+	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
+	gpio_write_one_pin_value(chip->gpio_pa, 0, "audio_pa_ctrl");
+	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_MUTE_CMD);
+	mdelay(5);
+
+	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_DISABLE_DRQ_CMD);
+	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_DAC_DISABLE_CMD);
+	
+}
+
 static int sunxi_i7_onboard_playback_trigger(struct snd_pcm_substream* pcm, int cmd)
 {
+	struct snd_pcm_runtime* pcm_rtd = pcm->runtime;
+	struct sunxi_i7_stream_runtime* rtd = pcm_rtd->private_data;
+
+	spin_lock(&rtd->lock);
 	switch(cmd){
 		case SNDRV_PCM_TRIGGER_START:
 		case SNDRV_PCM_TRIGGER_RESUME:
 		case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-			sunxi_i7_onboard_playback_hw_start(pcm);			
+			sunxi_i7_onboard_playback_hw_start(pcm);
+			sunxi_i7_dma_push(pcm_rtd);
+			sunxi_dma_start(rtd->dma_params);
+			if (pcm_rtd->rate > 22050){
+				mdelay(2);
+			}else{
+				mdelay(7);
+			}			
+			sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_UNMUTE_CMD);
+			
+		case SNDRV_PCM_TRIGGER_SUSPEND:
+			sunxi_i7_onboard_playback_hw_stop(pcm);
+			break;
+
+		case SNDRV_PCM_TRIGGER_STOP:
+			sunxi_i7_onboard_playback_hw_stop(pcm);
+			sunxi_dma_stop(rtd->dma_params);
+			rtd->periods = 0;
+			break;
+
+		case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+			sunxi_dma_stop(rtd->dma_params);
+			rtd->periods = 0;
+			break;
+
+		default:
+			break;
 	}
+	spin_unlock(&rtd->lock); 
 	return 0;
 }
 
@@ -547,7 +618,8 @@ static struct snd_pcm_ops playback_ops = {
 	.ioctl = snd_pcm_lib_ioctl,
 	.hw_params = sunxi_i7_onboard_playback_hw_params,
 	.prepare = sunxi_i7_onboard_playback_prepare,
-	.pointer = sunxi_i7_onboard_playback_pointer
+	.pointer = sunxi_i7_onboard_playback_pointer,
+	.trigger = sunxi_i7_onboard_playback_trigger
 };
 
 #if 0
@@ -568,6 +640,7 @@ static int __devinit sunxi_onboard_codec_pcm_new(struct sunxi_i7_chip* chip)
 	}
 
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &playback_ops);	
+	return 0;
 	//snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &capture_ops);
 }
 
@@ -593,6 +666,11 @@ static int __devinit sunxi_onboard_codec_probe(struct platform_device* pdev)
 	strcpy(card->longname, "sunxi-i7-onboard-codec Audio Codec");
 	snd_card_set_dev(card, &pdev->dev);
 	
+	if ((ret = sunxi_onboard_codec_pcm_new(chip)) < 0){
+		printk(KERN_ERR"create pcm failed. ret=%d\n", ret);
+		return ret;
+	}
+		
 	ret = snd_card_register(card);
 	if (ret < 0){
 		goto failed_card;
