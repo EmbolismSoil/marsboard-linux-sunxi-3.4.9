@@ -31,6 +31,10 @@
 static void sunxi_i7_chip_free(struct snd_card* card)
 {
 	struct sunxi_i7_chip* chip = card->private_data;
+	clk_put(chip->codec_apbclk);
+	clk_put(chip->codec_moduleclk);	
+	clk_put(chip->codec_pll2clk);
+	iounmap(chip->baseaddr);		
 	kzfree(chip);
 }
 
@@ -82,15 +86,13 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 	return 0;
 }
 
-static void sunxi_i7_rtd_free(struct snd_pcm_runtime* rtd)
+static void sunxi_i7_rtd_free(struct snd_pcm_runtime* pcm_rtd)
 {
-	if (rtd->private_data != NULL){
-		struct sunxi_i7_chip* chip = rtd->private_data;
-		clk_put(chip->codec_apbclk);
-		clk_put(chip->codec_moduleclk);	
-		clk_put(chip->codec_pll2clk);
-		iounmap(chip->baseaddr);
-		kzfree(rtd->private_data);
+	if (pcm_rtd->private_data != NULL){
+		struct sunxi_i7_stream_runtime* rtd = pcm_rtd->private_data;
+		sunxi_dma_stop(rtd->dma_params);
+		sunxi_dma_release(rtd->dma_params);
+		kzfree(rtd);
 	}
 }
 
@@ -748,7 +750,7 @@ static int  sunxi_onboard_codec_init(void)
 
 static void  sunxi_onboard_codec_exit(void)
 {
-	platform_device_unregister(&sunxi_i7_onboard_codec_dev);
+	platform_device_add(&sunxi_i7_onboard_codec_dev);
 	platform_driver_unregister(&sunxi_i7_onboard_codec_drv);
 }
 
