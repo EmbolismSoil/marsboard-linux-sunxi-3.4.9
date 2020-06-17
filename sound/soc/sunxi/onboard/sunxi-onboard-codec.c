@@ -61,6 +61,11 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 
 	struct resource* res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	void* baseaddr = ioremap(res->start, res->end - res->start);
+	if (!baseaddr){
+		printk(KERN_ERR"ioremap failed.\n");
+		return -ENOMEM;
+	}
+	
 	pchip->baseaddr = baseaddr;
 
 	pchip->gpio_pa = gpio_request_ex("audio_para", "audio_pa_ctrl");
