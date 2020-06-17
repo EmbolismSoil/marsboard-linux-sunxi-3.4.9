@@ -98,6 +98,8 @@ static void sunxi_i7_rtd_free(struct snd_pcm_runtime* pcm_rtd)
 
 static int sunxi_i7_onboard_codec_playback_open(struct snd_pcm_substream* pcm)
 {
+	printk(KERN_ALERT"sunxi_i7_onboard_codec_playback_open: into\n");
+
 	//struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
 	struct snd_pcm_runtime* runtime = pcm->runtime;
 	static struct snd_pcm_hardware hw = {
@@ -161,6 +163,7 @@ static int sunxi_i7_onboard_codec_playback_open(struct snd_pcm_substream* pcm)
 		return err;
 	}
 
+	printk(KERN_ALERT"sunxi_i7_onboard_codec_playback_open: exit\n");
 	return 0;
 
 }
@@ -212,6 +215,8 @@ static void sunxi_i7_play_dma_callback(struct sunxi_dma_params* dma, void* arg)
 
 static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, struct snd_pcm_hw_params* params)
 {
+	printk(KERN_ALERT"sunxi_i7_onboard_playback_hw_params: into\n");
+
 	//分配好内存然后初始化dma
 	static struct sunxi_dma_params dma_params = {
 		.client.name = "sunxi-i7-codec play",
@@ -252,6 +257,7 @@ static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, st
 	rtd->pos = rtd->dma_base_addr;
 	rtd->dma_end = rtd->dma_base_addr + buf_bytes;
 	spin_unlock_irq(&rtd->lock);
+	printk(KERN_ALERT"sunxi_i7_onboard_playback_hw_params: exit\n");
 
 	return 0;
 }
@@ -522,17 +528,24 @@ static int sunxi_i7_codec_dma_config(struct snd_pcm_substream* pcm)
 
 static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 {
+	printk(KERN_ALERT"sunxi_i7_onboard_playback_prepare: into prepare\n");
+
 	//硬件打开codec
 	sunxi_i7_codec_hw_open(pcm);
+	printk(KERN_ALERT"sunxi_i7_onboard_playback_prepare: open hardware\n");
 
 	//设置采样频率
 	sunxi_i7_codec_clk_set(pcm);
+	printk(KERN_ALERT"sunxi_i7_onboard_playback_prepare: set clock\n");
 
 	//设置通道	
 	sunxi_i7_codec_channel_set(pcm);
+	printk(KERN_ALERT"sunxi_i7_onboard_playback_prepare: set channels\n");
 	
 	//DMA配置
 	int ret = sunxi_i7_codec_dma_config(pcm);
+	printk(KERN_ALERT"sunxi_i7_onboard_playback_prepare: config dma\n");
+	
 	if(ret < 0){
 		printk(KERN_ALERT"config dma failed.\n");
 		return ret;
@@ -541,6 +554,8 @@ static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 	//加载dma数据
 	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
 	sunxi_i7_dma_push(rtd);
+	printk(KERN_ALERT"sunxi_i7_onboard_playback_prepare: push dma\n");
+	
 	return 0;
 }
 
@@ -691,6 +706,7 @@ static int  sunxi_onboard_codec_probe(struct platform_device* pdev)
 		goto failed_card;
 	}else{
 		platform_set_drvdata(pdev, card);
+		printk(KERN_ALERT"sunxi_onboard_codec_probe: register new snd card\n");
 		return 0;
 	}
 
