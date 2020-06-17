@@ -461,11 +461,16 @@ static void sunxi_i7_codec_cmd(struct snd_pcm_substream* pcm, sunxi_i7_codec_cmd
 
 static void sunxi_i7_codec_hw_open(struct snd_pcm_substream* pcm)
 {
+	printk(KERN_ALERT"sunxi_i7_codec_hw_open: pcm=0x%08x\n", (uint32_t)pcm);
+	
 	struct sunxi_i7_chip* chip = snd_pcm_substream_chip(pcm);
+	printk(KERN_ALERT"sunxi_i7_codec_hw_open: chip=0x%08x\n", (uint32_t)chip);
+	
 	void *baseaddr = chip->baseaddr;
+	printk(KERN_ALERT"sunxi_i7_codec_hw_open: baseaddr=0x%08x\n", (uint32_t)baseaddr);
 	
 	//DAC ENABLE
-	uint32_t* reg = baseaddr + SUNXI_I7_DAC_DPC;
+	uint32_t* reg = baseaddr + SUNXI_I7_DAC_DPC;	
 	sunxi_i7_set_bit(reg, 31);
 
 	reg = baseaddr + SUNXI_I7_DAC_FIFOC;
