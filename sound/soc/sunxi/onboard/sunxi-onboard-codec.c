@@ -762,25 +762,28 @@ static struct resource sunxi_codec_resource[] = {
 	}
 };
 
-static struct platform_device sunxi_i7_onboard_codec_dev = {
-	.name = "sunxi-i7-onboard-codec",
-	.id = -1,
-	.num_resources = 1,
-	.resource = sunxi_codec_resource
-};
+static struct platform_device* sunxi_i7_onboard_codec_dev = NULL;
 
 static int __init  sunxi_onboard_codec_init(void)
 {
 	int ret = 0;
-	ret = platform_device_register(&sunxi_i7_onboard_codec_dev);
+	sunxi_i7_onboard_codec_dev = platform_device_alloc("sunxi-i7-onboard-codec", -1);
+	if (!sunxi_i7_onboard_codec_dev){
+		printk(KERN_ALERT"sunxi_onboard_codec_init: alloc device failed\n");
+		return -ENOMEM;
+	}
+	
+	platform_device_add_resources(sunxi_i7_onboard_codec_dev, sunxi_codec_resource, 1);
+	ret = platform_device_add(sunxi_i7_onboard_codec_dev);
 
 	if (ret < 0){
+		platform_device_put(sunxi_i7_onboard_codec_dev);
 		return ret;
 	}
 
 	ret = platform_driver_register(&sunxi_i7_onboard_codec_drv);
 	if (ret < 0){
-		platform_device_unregister(&sunxi_i7_onboard_codec_dev);
+		platform_device_unregister(sunxi_i7_onboard_codec_dev);
 		return ret;
 	}
 
@@ -789,7 +792,7 @@ static int __init  sunxi_onboard_codec_init(void)
 
 static void __exit  sunxi_onboard_codec_exit(void)
 {
-	platform_device_unregister(&sunxi_i7_onboard_codec_dev);
+	platform_device_unregister(sunxi_i7_onboard_codec_dev);
 	platform_driver_unregister(&sunxi_i7_onboard_codec_drv);
 }
 
