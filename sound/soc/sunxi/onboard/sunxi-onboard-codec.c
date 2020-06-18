@@ -764,7 +764,7 @@ static struct platform_device sunxi_i7_onboard_codec_dev = {
 static int  sunxi_onboard_codec_init(void)
 {
 	int ret = 0;
-	ret = platform_device_register(&sunxi_i7_onboard_codec_dev);
+	ret = platform_device_add(&sunxi_i7_onboard_codec_dev);
 	if (ret < 0){
 		return ret;
 	}
@@ -780,7 +780,7 @@ static int  sunxi_onboard_codec_init(void)
 
 static void  sunxi_onboard_codec_exit(void)
 {
-	platform_device_add(&sunxi_i7_onboard_codec_dev);
+	platform_device_unregister(&sunxi_i7_onboard_codec_dev);
 	platform_driver_unregister(&sunxi_i7_onboard_codec_drv);
 }
 
