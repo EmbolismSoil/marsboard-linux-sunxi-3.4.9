@@ -35,7 +35,8 @@ static void sunxi_i7_chip_free(struct snd_card* card)
 	clk_put(chip->codec_moduleclk);	
 	clk_put(chip->codec_pll2clk);
 	iounmap(chip->baseaddr);		
-	kzfree(chip);
+	release_mem_region(chip->io_req, 0x40);
+	//kfree(chip);
 }
 
 
@@ -64,7 +65,13 @@ static int sunxi_i7_chip_create(struct snd_card* card, struct platform_device* p
 	clk_enable(codec_moduleclk);
 
 	struct resource* res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	void* baseaddr = ioremap(res->start, res->end - res->start);
+	struct resource* io_req = request_mem_region(res->start, 0x40, pdev->name);
+	if (!io_req){
+		printk(KERN_ALERT"request_mem_region failed.\n");
+		return -ENOMEM;
+	}
+
+	void* baseaddr = ioremap(res->start, 0x40);
 	if (!baseaddr){
 		printk(KERN_ALERT"ioremap failed.\n");
 		return -ENOMEM;
@@ -624,7 +631,7 @@ static int sunxi_i7_onboard_playback_trigger(struct snd_pcm_substream* pcm, int 
 			sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_UNMUTE_CMD);
 			
 		case SNDRV_PCM_TRIGGER_SUSPEND:			
-			printk(KERN_ALERT"sunxi_i7_onboard_playback_trigger: stop play\n");
+			printk(KERN_ALERT"sunxi_i7_onboard_playback_trigger: suspend play\n");
 			sunxi_i7_onboard_playback_hw_stop(pcm);
 			break;
 
@@ -636,7 +643,7 @@ static int sunxi_i7_onboard_playback_trigger(struct snd_pcm_substream* pcm, int 
 			break;
 
 		case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-			printk(KERN_ALERT"sunxi_i7_onboard_playback_trigger: stop play\n");			
+			printk(KERN_ALERT"sunxi_i7_onboard_playback_trigger: pause push play\n");			
 			sunxi_dma_stop(rtd->dma_params);
 			rtd->periods = 0;
 			break;
@@ -757,14 +764,16 @@ static struct resource sunxi_codec_resource[] = {
 
 static struct platform_device sunxi_i7_onboard_codec_dev = {
 	.name = "sunxi-i7-onboard-codec",
+	.id = -1,
 	.num_resources = 1,
 	.resource = sunxi_codec_resource
 };
 
-static int  sunxi_onboard_codec_init(void)
+static int __init  sunxi_onboard_codec_init(void)
 {
 	int ret = 0;
-	ret = platform_device_add(&sunxi_i7_onboard_codec_dev);
+	ret = platform_device_register(&sunxi_i7_onboard_codec_dev);
+
 	if (ret < 0){
 		return ret;
 	}
@@ -778,7 +787,7 @@ static int  sunxi_onboard_codec_init(void)
 	return 0;
 }
 
-static void  sunxi_onboard_codec_exit(void)
+static void __exit  sunxi_onboard_codec_exit(void)
 {
 	platform_device_unregister(&sunxi_i7_onboard_codec_dev);
 	platform_driver_unregister(&sunxi_i7_onboard_codec_drv);

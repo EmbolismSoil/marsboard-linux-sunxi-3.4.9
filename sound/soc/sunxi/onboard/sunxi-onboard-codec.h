@@ -26,6 +26,7 @@ struct sunxi_i7_chip
 	struct clk* codec_moduleclk;
 	struct clk* codec_apbclk;
 	void* baseaddr;
+	struct resource* io_req;
 	int gpio_pa;
 };
 
