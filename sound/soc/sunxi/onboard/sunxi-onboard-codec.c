@@ -256,7 +256,7 @@ static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, st
 		return ret;
 	}
 	
-
+	snd_pcm_set_runtime_buffer(pcm, &pcm->dma_buffer);
 	struct snd_pcm_runtime* pcm_rtd = pcm->runtime;
 	spin_lock_irq(&rtd->lock);
 	rtd->periods = 0;
