@@ -581,10 +581,14 @@ static snd_pcm_uframes_t sunxi_i7_onboard_playback_pointer(struct snd_pcm_substr
 
 	printk(KERN_ALERT"sunxi_i7_pointer: into pointer\n");	
 	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
-	dma_addr_t src;
 	dma_addr_t dest;	
 	unsigned long res = 0;
 
+	static dma_addr_t src = 0;
+	if (src == 0){
+		src = rtd->dma_base_addr;
+	}
+	
 	spin_lock(&rtd->lock);
 	sunxi_dma_getcurposition(rtd->dma_params, &src, &dest);
 	res = src + rtd->period_bytes - rtd->dma_base_addr;
