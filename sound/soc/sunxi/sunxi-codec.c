@@ -1546,7 +1546,7 @@ static int __devinit sunxi_codec_probe(struct platform_device *pdev)
 	 gpio_pa_shutdown = gpio_request_ex("audio_para", "audio_pa_ctrl");
 	if (gpio_pa_shutdown)
 		gpio_write_one_pin_value(gpio_pa_shutdown, 0, "audio_pa_ctrl");
-	 codec_init();
+	 //codec_init();
 	if (gpio_pa_shutdown)
 		gpio_write_one_pin_value(gpio_pa_shutdown, 0, "audio_pa_ctrl");
 	 resume_work_queue = create_singlethread_workqueue("codec_resume");
@@ -1679,6 +1679,7 @@ static struct platform_driver sunxi_codec_driver = {
 
 static int __init sunxi_codec_init(void)
 {
+#if 0
 	int ret = 0, audio_used = 0;
 
 	ret = script_parser_fetch("audio_para", "audio_used", &audio_used, 1);
@@ -1711,14 +1712,16 @@ static int __init sunxi_codec_init(void)
 		platform_device_unregister(&sunxi_device_codec);
 		return ret;
 	}
-
+#endif
 	return 0;
 }
 
 static void __exit sunxi_codec_exit(void)
 {
+#if 0
 	platform_driver_unregister(&sunxi_codec_driver);
 	platform_device_unregister(&sunxi_device_codec);
+#endif
 }
 
 module_init(sunxi_codec_init);
