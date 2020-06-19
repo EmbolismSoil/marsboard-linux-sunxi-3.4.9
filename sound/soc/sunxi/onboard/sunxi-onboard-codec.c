@@ -34,8 +34,8 @@ static void sunxi_i7_chip_free(struct snd_card* card)
 	clk_put(chip->codec_apbclk);
 	clk_put(chip->codec_moduleclk);	
 	clk_put(chip->codec_pll2clk);
-	iounmap(chip->baseaddr);		
-	release_mem_region(chip->io_req, 0x40);
+	//mounmap(chip->baseaddr);		
+	//release_mem_region(chip->io_req, 0x40);
 	//kfree(chip);
 }
 
@@ -214,12 +214,14 @@ static void sunxi_i7_play_dma_callback(struct sunxi_dma_params* dma, void* arg)
 	snd_pcm_period_elapsed(pcm);
 
 	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
+	printk(KERN_ALERT"dma done callback: into callback, pos = 0x%08x, periods = %u\n", rtd->pos, rtd->periods);
 	spin_lock(&rtd->lock);
 	if (rtd->periods > 0){
 		rtd->periods -= 1;		
 	}
 	sunxi_i7_dma_push(rtd);
 	spin_unlock(&rtd->lock);
+	printk(KERN_ALERT"dma done callback: exit callback, pos = 0x%08x, periods = %u\n", rtd->pos, rtd->periods);
 }
 
 static int sunxi_i7_onboard_playback_hw_params(struct snd_pcm_substream* pcm, struct snd_pcm_hw_params* params)
@@ -488,8 +490,10 @@ static void sunxi_i7_codec_hw_open(struct snd_pcm_substream* pcm)
 	sunxi_i7_codec_cmd(pcm, SUNXI_I7_CODEC_FLUSH_FIFO_CMD);
 
 	//设置DRQ LEVEL
-	//uint32_t regval = readl(reg);
-	//regval |= (0xf << 8);
+	uint32_t regval = readl(reg);
+	regval &=~ (0xf << 8);
+	regval |= (0x4 << 8);
+	writel(regval, reg);
 
 	if(pcm->runtime->rate > 32000){
 		sunxi_i7_clear_bit(reg, 28);
@@ -575,6 +579,8 @@ static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 
 static snd_pcm_uframes_t sunxi_i7_onboard_playback_pointer(struct snd_pcm_substream* pcm)
 {
+
+	printk(KERN_ALERT"sunxi_i7_pointer: into pointer\n");	
 	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
 	dma_addr_t src;
 	dma_addr_t dest;	
@@ -584,7 +590,10 @@ static snd_pcm_uframes_t sunxi_i7_onboard_playback_pointer(struct snd_pcm_substr
 	sunxi_dma_getcurposition(rtd->dma_params, &src, &dest);
 	res = src + rtd->period_bytes - rtd->dma_base_addr;
 	spin_unlock(&rtd->lock);
-	return bytes_to_frames(pcm->runtime, res);
+	printk(KERN_ALERT"sunxi_i7_pointer: point to %lu res\n", res);	
+	unsigned long frames = bytes_to_frames(pcm->runtime, res);
+	printk(KERN_ALERT"sunxi_i7_pointer: frame to %lu res\n", frames);	
+	return frames;
 }
 
 static int sunxi_i7_onboard_playback_hw_start(struct snd_pcm_substream* pcm)
