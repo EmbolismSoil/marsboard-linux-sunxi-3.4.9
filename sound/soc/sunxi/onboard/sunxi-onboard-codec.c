@@ -570,6 +570,10 @@ static int sunxi_i7_onboard_playback_prepare(struct snd_pcm_substream* pcm)
 
 	//加载dma数据
 	struct sunxi_i7_stream_runtime* rtd = pcm->runtime->private_data;
+	rtd->periods = 0;
+	if (sunxi_dma_flush(rtd->dma_params) == 0){
+		rtd->pos = rtd->dma_base_addr;
+	}
 	sunxi_i7_dma_push(rtd);
 	printk(KERN_ALERT"sunxi_i7_onboard_playback_prepare: push dma\n");
 	
